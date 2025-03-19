@@ -1,7 +1,7 @@
 import os
 import torch
 import cv2 as cv
-from unet_lens import UNet
+from .unet_lens import UNet
 import numpy as np
 from sklearn.cluster import DBSCAN
 import matplotlib
@@ -198,6 +198,7 @@ class LensProcess:
         :param image_path: 原始图像文件路径
         :param save_dir: 保存结果图像的文件夹路径
         """
+        print(f"Processing image: {image_path}")
         # 读取图像并调整大小为 (1440, 1024)
         img = cv.imread(image_path)
         img = cv.resize(img, (1440, 1024))
@@ -259,6 +260,7 @@ class LensProcess:
         # 组合保存路径
         save_path = os.path.join(save_dir, new_filename)
         cv.imwrite(save_path, img)
+        print(f"Image saved to: {save_path}")
 
         # 可选：显示最终结果和其他中间结果（可根据需要取消注释）
         # cv.imshow('原始图像', img)
