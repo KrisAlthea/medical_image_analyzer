@@ -13,7 +13,6 @@ class StyleSheet(StyleSheetBase, Enum):
     RETINA_INTERFACE = "retina_interface"
     SETTING_INTERFACE = "setting_interface"
 
-#todo: 设置正确的路径
     def path(self, theme=Theme.AUTO):
         theme = qconfig.theme if theme == Theme.AUTO else theme
-        return f":/gallery/qss/{theme.value.lower()}/{self.value}.qss"
+        return f":/qss/{theme.value.lower()}/{self.value}.qss"

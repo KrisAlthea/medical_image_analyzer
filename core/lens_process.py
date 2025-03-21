@@ -11,9 +11,10 @@ import matplotlib.pyplot as plt
 
 """
 总结性笔记 
-`methods.py` 文件实现了一个完整的图像处理 lens_process，利用 UNet 模型进行语义分割，
+实现了一个完整的图像处理 lens_process，利用 UNet 模型进行语义分割，
 并对分割结果进行后处理以提取和优化边界点集，最终在原始图像上可视化边界。
-整个流程包括模型加载、图像预处理、模型预测、边界点提取、噪声去除、边界拟合和结果可视化。代码结构清晰，功能模块化，易于理解和扩展。
+整个流程包括模型加载、图像预处理、模型预测、边界点提取、噪声去除、边界拟合和结果可视化。
+代码结构清晰，功能模块化，易于理解和扩展。
 """
 
 
@@ -194,6 +195,7 @@ class LensProcess:
           5. 对边界点进行二次多项式拟合；
           6. 在原始图像上绘制拟合结果；
           7. 保存最终结果图像到指定目录。
+          8. 返回处理结果数据
 
         :param image_path: 原始图像文件路径
         :param save_dir: 保存结果图像的文件夹路径
@@ -269,6 +271,15 @@ class LensProcess:
         # cv.destroyAllWindows()
         # plt.close('all')  # 确保关闭所有 matplotlib 窗口
 
+        # 返回处理结果数据
+        result_data = {
+            'up_boundary_points': up_data,
+            'down_boundary_points': down_data,
+            'up_fitting_equation': p1_up,
+            'down_fitting_equation': p1_down,
+            'result_image_path': save_path
+        }
+        return result_data
 
 # 主程序入口
 if __name__ == "__main__":

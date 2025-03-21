@@ -20,6 +20,7 @@ from gui.home_interface import HomeInterface
 from gui.lens_interface import LensInterface
 from gui.retina_interface import RetinaInterface
 from gui.setting_interface import SettingInterface
+import common.resources
 
 
 class ImageProcessorPage(QWidget):
