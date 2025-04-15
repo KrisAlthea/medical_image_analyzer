@@ -26,19 +26,19 @@ class LensProcess:
     及结果可视化和保存的完整流程。
     """
 
-    def __init__(self, best_model_path, device=None):
+    def __init__(self, model_path="../models/lens.pth"):
         """
         初始化语义分割模型
 
-        :param best_model_path: 最佳分割模型权重文件的路径
+        :param model_path: 最佳分割模型权重文件的路径
         :param device: 指定计算设备，若未指定则自动选择GPU（若可用）或CPU
         """
         # 1.1 确定计算设备（GPU或CPU）
-        self.device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         # 1.2 初始化UNet模型（in_channels=3, n_classes=2, channels=96）
         self.net = UNet(in_channels=3, n_classes=2, channels=96)
         # 1.3 加载预训练权重（weights_only方式）
-        self.net.load_state_dict(torch.load(best_model_path, map_location=self.device, weights_only=True))
+        self.net.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
         self.net.to(self.device)
         self.net.eval()  # 设置为评估模式
 
@@ -71,7 +71,7 @@ class LensProcess:
         return pred
 
     @staticmethod
-    def getUpAndDownPointerList(pred):
+    def get_up_and_down_pointer_list(pred):
         """
         从UNet的分割结果中提取上边界和下边界点集。
 
@@ -112,7 +112,7 @@ class LensProcess:
         return up_data, down_data
 
     @staticmethod
-    def getBestDist(data, k):
+    def get_best_dist(data, k):
         """
         计算每个点到其第k个最近邻的距离，用于DBSCAN的eps参数选择。
 
@@ -129,7 +129,7 @@ class LensProcess:
         return np.array(k_dist)
 
     @staticmethod
-    def deleteErrorPointer(data, k=1, d=15):
+    def delete_error_pointer(data, k=1, d=15):
         """
         使用DBSCAN算法去除点集中的噪声点。
 
@@ -142,7 +142,7 @@ class LensProcess:
         # 一、DBSCAN算法
         ##############################
         # 1.1 计算每个点的k-近邻距离并排序
-        k_dist = LensProcess.getBestDist(data, k)
+        k_dist = LensProcess.get_best_dist(data, k)
         k_dist.sort()
         eps = k_dist[::-1][d]  # 倒序取第d个距离作为eps
         # 1.2 应用DBSCAN聚类
@@ -167,7 +167,7 @@ class LensProcess:
         return new_data
 
     @staticmethod
-    def fitEquation(data):
+    def fit_equation(data):
         """
         对点集进行二次多项式拟合，生成边界方程。
 
@@ -185,7 +185,7 @@ class LensProcess:
         new_y = p1(new_x)
         return p1, new_x, new_y
 
-    def process_and_save(self, image_path, save_dir):
+    def process_lens(self, image_path, save_dir):
         """
         完整图像处理流程：
           1. 读取并调整图像大小；
@@ -218,7 +218,7 @@ class LensProcess:
         # -------------------------------
         # 边界点提取
         # -------------------------------
-        up_data, down_data = LensProcess.getUpAndDownPointerList(pred)
+        up_data, down_data = LensProcess.get_up_and_down_pointer_list(pred)
         # 可选：显示提取的边界点
         # plt.subplot(1, 2, 1)
         # plt.scatter(up_data[:, 0], up_data[:, 1])
@@ -232,9 +232,9 @@ class LensProcess:
         # 上边界处理
         # -------------------------------
         # 去除噪声
-        up_data = LensProcess.deleteErrorPointer(up_data, k=5, d=15)
+        up_data = LensProcess.delete_error_pointer(up_data, k=5, d=15)
         # 拟合上边界
-        p1_up, up_x, up_y = LensProcess.fitEquation(up_data)
+        p1_up, up_x, up_y = LensProcess.fit_equation(up_data)
         # 在图像上绘制上边界拟合曲线（绿色圆点）
         for i in range(len(up_x)):
             cv.circle(img, (int(up_x[i]), int(-up_y[i])), 2, (0, 255, 0), -1)
@@ -243,9 +243,9 @@ class LensProcess:
         # 下边界处理
         # -------------------------------
         # 去除噪声
-        down_data = LensProcess.deleteErrorPointer(down_data)
+        down_data = LensProcess.delete_error_pointer(down_data)
         # 拟合下边界
-        p1_down, down_x, down_y = LensProcess.fitEquation(down_data)
+        p1_down, down_x, down_y = LensProcess.fit_equation(down_data)
         # 在图像上绘制下边界拟合曲线（绿色圆点）
         for i in range(len(down_x)):
             cv.circle(img, (int(down_x[i]), int(-down_y[i])), 2, (0, 255, 0), -1)
@@ -281,6 +281,7 @@ class LensProcess:
         }
         return result_data
 
+
 # 主程序入口
 if __name__ == "__main__":
     # 指定最佳模型路径
@@ -292,4 +293,4 @@ if __name__ == "__main__":
     # 指定结果保存目录
     save_dir = r"D:\Code\PyCharm_ws\medical_image_analyzer\output\lens"
     # 调用处理流程并保存结果
-    lens_process.process_and_save(image_path, save_dir)
+    lens_process.process_lens(image_path, save_dir)

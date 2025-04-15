@@ -17,34 +17,37 @@ class Worker(QThread):
     def __init__(self, lens_process, image_path, save_dir):
         super().__init__()
         self.lens_process = lens_process  # LensProcess 实例
-        self.image_path = image_path      # 输入图片路径
-        self.save_dir = save_dir          # 输出保存目录
+        self.image_path = image_path  # 输入图片路径
+        self.save_dir = save_dir  # 输出保存目录
 
     def run(self):
         """线程执行函数，调用处理逻辑并发射结果"""
-        result_data = self.lens_process.process_and_save(self.image_path, self.save_dir)
+        result_data = self.lens_process.process_lens(self.image_path, self.save_dir)
         self.finished.emit(result_data)
+
 
 class LensInterface(ScrollArea):
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
+        self.processed_pixmap = None
+        self.original_pixmap = None
         self.image_path = None
 
         self.view = QWidget(self)
         self.vBoxLayout = QVBoxLayout(self.view)
 
         # 初始化 LensProcess 实例
-        best_model_path = r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\models\lens.pth"  # 请根据实际路径修改
+        best_model_path = r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\models\lens.pth"
         self.lens_process = LensProcess(best_model_path)
 
         # 设置保存目录
-        self.save_dir = r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\output\lens"  # 请根据实际路径修改
+        self.save_dir = r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\output\lens"
         os.makedirs(self.save_dir, exist_ok=True)  # 创建目录（如果不存在）
 
         # 创建界面组件
-        self.select_button = ToolButton(FluentIcon.ADD,self)  # 选择图片按钮
-        self.process_button = ToolButton(FluentIcon.PLAY,self)  # 处理图片按钮
+        self.select_button = ToolButton(FluentIcon.ADD, self)  # 选择图片按钮
+        self.process_button = ToolButton(FluentIcon.PLAY, self)  # 处理图片按钮
         # pixmap = QPixmap(self.image_path) # 读取图片
         # self.original_label.setPixmap(pixmap) # 设置图片到 QLabel
         self.original_label = QLabel("Original Image")  # 原始图片显示区
@@ -127,9 +130,46 @@ class LensInterface(ScrollArea):
             #     Qt.KeepAspectRatio,
             #     Qt.SmoothTransformation
             # )
-            pixmap = QPixmap(self.image_path)  # 读取图片
-            self.original_label.setPixmap(pixmap)  # 设置图片到 QLabel
-            self.original_label.setScaledContents(True)
+            # 读取图片并缩放以适应控件大小
+            self.original_pixmap = QPixmap(self.image_path)
+            # 初次加载时进行缩放显示
+            self.update_original_image_scale()
+            # 设置 label 的 resizeEvent，使图片可以随 label 大小变化而自动调整
+            self.original_label.resizeEvent = self.original_label_resize_event
+
+    def update_original_image_scale(self):
+        """更新原始图像的缩放显示"""
+        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
+            scaled_pixmap = self.original_pixmap.scaled(
+                self.original_label.width(),
+                self.original_label.height(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            self.original_label.setPixmap(scaled_pixmap)
+
+    def original_label_resize_event(self, event):
+        """处理原始图像标签的大小调整事件"""
+        self.update_original_image_scale()
+        # 确保调用父类的 resizeEvent 以保持正常行为
+        QLabel.resizeEvent(self.original_label, event)
+
+    def update_processed_image_scale(self):
+        """更新后图像的缩放显示"""
+        if hasattr(self, 'processed_pixmap') and not self.processed_pixmap.isNull():
+            scaled_pixmap = self.processed_pixmap.scaled(
+                self.processed_label.width(),
+                self.processed_label.height(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            self.processed_label.setPixmap(scaled_pixmap)
+
+    def processed_label_resize_event(self, event):
+        """处理原始图像标签的大小调整事件"""
+        self.update_processed_image_scale()
+        # 确保调用父类的 resizeEvent 以保持正常行为
+        QLabel.resizeEvent(self.processed_label, event)
 
     def process_image(self):
         """启动图像处理线程"""
@@ -153,14 +193,19 @@ class LensInterface(ScrollArea):
 
         # 显示处理后的图片
         result_image_path = result_data['result_image_path']
-        # pixmap = QPixmap(result_image_path).scaled(
-        #     self.processed_label.size(),
-        #     Qt.KeepAspectRatio,
-        #     Qt.SmoothTransformation
-        # )
-        pixmap = QPixmap(result_image_path)
-        self.processed_label.setPixmap(pixmap)
-        self.processed_label.setScaledContents(True)
+        self.processed_pixmap = QPixmap(result_image_path)
+        self.update_processed_image_scale()
+        # 设置 label 的 resizeEvent，使图片可以随 label 大小变化而自动调整
+        self.processed_label.resizeEvent = self.processed_label_resize_event
+        # result_image_path = result_data['result_image_path']
+        # # pixmap = QPixmap(result_image_path).scaled(
+        # #     self.processed_label.size(),
+        # #     Qt.KeepAspectRatio,
+        # #     Qt.SmoothTransformation
+        # # )
+        # pixmap = QPixmap(result_image_path)
+        # self.processed_label.setPixmap(pixmap)
+        # self.processed_label.setScaledContents(True)
 
         # 显示处理数据
         up_points = result_data['up_boundary_points']
@@ -179,6 +224,7 @@ class LensInterface(ScrollArea):
 # 主程序入口（示例）
 if __name__ == "__main__":
     from PyQt5.QtWidgets import QApplication
+
     app = QApplication(sys.argv)
     setTheme(Theme.DARK)  # 设置为暗色主题
     interface = LensInterface()
