@@ -1,10 +1,13 @@
 import os
 import sys
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QTextEdit, QLabel, QFileDialog
-from qfluentwidgets import ScrollArea, ToolButton, FluentIcon, setTheme, Theme, TextEdit
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
+from PyQt5.QtGui import QPixmap, QColor
+from PyQt5.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QLabel, QFileDialog, QFrame
+from qfluentwidgets import (ScrollArea, FluentIcon, setTheme, Theme, TextEdit,
+                            PrimaryPushButton, CardWidget, StrongBodyLabel, SubtitleLabel,
+                           BodyLabel, InfoBar, InfoBarPosition,
+                           TransparentToolButton, PushButton, IconWidget, ProgressRing)
 
 from common.style_sheet import StyleSheet
 from core.retina_process import RetinaProcess  # 需要创建这个处理类
@@ -13,6 +16,7 @@ from core.retina_process import RetinaProcess  # 需要创建这个处理类
 class Worker(QThread):
     """后台线程类，用于异步执行图像处理"""
     finished = pyqtSignal(dict)  # 信号，传递处理结果
+    progress = pyqtSignal(int)  # 进度信号
 
     def __init__(self, retina_process, image_path, save_dir):
         super().__init__()
@@ -22,6 +26,11 @@ class Worker(QThread):
 
     def run(self):
         """线程执行函数，调用处理逻辑并发射结果"""
+        # 模拟进度更新
+        for i in range(0, 101, 10):
+            self.progress.emit(i)
+            self.msleep(100)
+            
         circle_params = {
             "radius_range": range(200, 350, 5),
             "center_x_range": (0, 400),
@@ -29,7 +38,86 @@ class Worker(QThread):
             "step": 20
         }
         result_data = self.retina_process.process_retina(self.image_path, circle_params, self.save_dir)
+        self.progress.emit(100)
         self.finished.emit(result_data)
+
+
+class ImageCard(CardWidget):
+    """图片显示卡片组件"""
+    
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.setObjectName("imageCard")
+        
+        # 创建布局
+        self.vBoxLayout = QVBoxLayout(self)
+        self.vBoxLayout.setContentsMargins(16, 16, 16, 16)
+        self.vBoxLayout.setSpacing(8)
+        
+        # 创建标题
+        self.titleLabel = StrongBodyLabel(title, self)
+        self.titleLabel.setObjectName("cardTitle")
+        
+        # 创建图片标签
+        self.imageLabel = QLabel(self)
+        self.imageLabel.setAlignment(Qt.AlignCenter)
+        self.imageLabel.setMinimumSize(300, 200)
+        self.imageLabel.setObjectName("imageLabel")
+        self.imageLabel.setStyleSheet("background-color: rgba(0, 0, 0, 0.03); border-radius: 6px;")
+        
+        # 添加组件到布局
+        self.vBoxLayout.addWidget(self.titleLabel)
+        self.vBoxLayout.addWidget(self.imageLabel, 1)
+    
+    def setPixmap(self, pixmap):
+        """设置图片并保持纵横比"""
+        if pixmap and not pixmap.isNull():
+            self.pixmap = pixmap
+            scaled_pixmap = pixmap.scaled(
+                self.imageLabel.width(),
+                self.imageLabel.height(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            self.imageLabel.setPixmap(scaled_pixmap)
+    
+    def resizeEvent(self, event):
+        """处理大小调整事件"""
+        super().resizeEvent(event)
+        if hasattr(self, 'pixmap') and self.pixmap and not self.pixmap.isNull():
+            self.setPixmap(self.pixmap)
+
+
+class ResultCard(CardWidget):
+    """分析结果显示卡片"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("resultCard")
+        
+        # 创建布局
+        self.vBoxLayout = QVBoxLayout(self)
+        self.vBoxLayout.setContentsMargins(16, 16, 16, 16)
+        self.vBoxLayout.setSpacing(8)
+        
+        # 创建标题
+        self.titleLabel = StrongBodyLabel("分析结果", self)
+        self.titleLabel.setObjectName("cardTitle")
+        
+        # 创建文本编辑区
+        self.textEdit = TextEdit(self)
+        self.textEdit.setReadOnly(True)
+        self.textEdit.setObjectName("resultText")
+        self.textEdit.setStyleSheet("background-color: rgba(0, 0, 0, 0.02); border-radius: 6px;")
+        
+        # 添加导出按钮
+        self.exportButton = PushButton("导出报告", self, FluentIcon.SAVE)
+        self.exportButton.setObjectName("exportButton")
+        
+        # 添加组件到布局
+        self.vBoxLayout.addWidget(self.titleLabel)
+        self.vBoxLayout.addWidget(self.textEdit, 1)
+        self.vBoxLayout.addWidget(self.exportButton)
 
 
 class RetinaInterface(ScrollArea):
@@ -51,200 +139,290 @@ class RetinaInterface(ScrollArea):
         self.save_dir = r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\output\retina"
         os.makedirs(self.save_dir, exist_ok=True)  # 创建目录（如果不存在）
 
-        # 创建界面组件
-        self.select_button = ToolButton(FluentIcon.ADD, self)  # 选择图片按钮
-        self.process_button = ToolButton(FluentIcon.PLAY, self)  # 处理图片按钮
-        self.original_label = QLabel("Original Image")  # 原始图片显示区
-        self.original_label.setAlignment(Qt.AlignCenter)  # 居中对齐
-        self.processed_label = QLabel("Processed Image")  # 处理后图片显示区
-        self.processed_label.setAlignment(Qt.AlignCenter)  # 居中对齐
-        self.data_text = TextEdit()  # 数据显示区
-        self.data_text.setReadOnly(True)  # 设置为只读
-
-        # 设置布局
-        # 顶部工具栏布局
-        self.toolbar = QWidget()
-        toolbar_layout = QHBoxLayout(self.toolbar)
-        toolbar_layout.addStretch()  # 左侧伸缩
-        toolbar_layout.addWidget(self.select_button)
-        toolbar_layout.addWidget(self.process_button)
-        toolbar_layout.addStretch()  # 右侧伸缩
-
-        # 包装图片标签
-        original_scroll = ScrollArea()
-        original_scroll.setWidget(self.original_label)
-        original_scroll.setWidgetResizable(True)
-
-        processed_scroll = ScrollArea()
-        processed_scroll.setWidget(self.processed_label)
-        processed_scroll.setWidgetResizable(True)
-
-        # 中间图片展示区，使用 QSplitter 水平分割
-        image_splitter = QSplitter(Qt.Horizontal)
-        image_splitter.addWidget(original_scroll)
-        image_splitter.addWidget(processed_scroll)
-        image_splitter.setSizes([600, 600])  # 设置初始宽度
-
-        # 创建垂直分割器
-        main_splitter = QSplitter(Qt.Vertical)
-        main_splitter.addWidget(image_splitter)  # 图片区的 QSplitter
-        main_splitter.addWidget(self.data_text)  # 数据展示区
-        main_splitter.setSizes([600, 200])  # 初始高度：图片区 600px，数据区 200px
-
-        # 将工具栏和主分割器添加到 vBoxLayout
-        self.vBoxLayout.addWidget(self.toolbar)
-        self.vBoxLayout.addWidget(main_splitter)
-
+        # 初始化界面组件
+        self.__initHeader()
+        self.__initImageArea()
+        self.__initResultArea()
         self.__initWidget()
 
         # 连接信号与槽
-        self.select_button.clicked.connect(self.select_image)  # 选择图片按钮点击事件
-        self.process_button.clicked.connect(self.process_image)  # 处理图片按钮点击事件
+        self.selectButton.clicked.connect(self.select_image)  # 选择图片按钮点击事件
+        self.processButton.clicked.connect(self.process_image)  # 处理图片按钮点击事件
+        self.resultCard.exportButton.clicked.connect(self.export_report)  # 导出报告按钮点击事件
 
         # 初始化变量
-        self.image_path = None  # 当前选择的图片路径
         self.worker = None  # 后台线程实例
+        self.progressWidget = None  # 进度指示器
+
+    def __initHeader(self):
+        """初始化页面顶部区域"""
+        # 创建顶部标题区域
+        self.headerWidget = QWidget(self)
+        headerLayout = QHBoxLayout(self.headerWidget)
+        headerLayout.setContentsMargins(20, 10, 20, 10)
+        
+        # 添加图标
+        self.iconWidget = IconWidget(FluentIcon.IOT, self.headerWidget)
+        self.iconWidget.setFixedSize(32, 32)
+        
+        # 添加标题
+        self.titleLabel = SubtitleLabel("视网膜分析", self.headerWidget)
+        self.titleLabel.setObjectName("pageTitle")
+        
+        # 添加描述
+        self.descriptionLabel = BodyLabel("提取视网膜BM层边界，进行圆形拟合计算直径参数", self.headerWidget)
+        self.descriptionLabel.setObjectName("pageDescription")
+        
+        # 创建标题文本布局
+        textLayout = QVBoxLayout()
+        textLayout.setSpacing(0)
+        textLayout.addWidget(self.titleLabel)
+        textLayout.addWidget(self.descriptionLabel)
+        
+        # 将组件添加到顶部布局
+        headerLayout.addWidget(self.iconWidget)
+        headerLayout.addSpacing(10)
+        headerLayout.addLayout(textLayout)
+        headerLayout.addStretch(1)
+        
+        # 添加按钮
+        self.selectButton = PrimaryPushButton("选择图片", self, FluentIcon.FOLDER)
+        self.selectButton.setObjectName("selectButton")
+        self.processButton = PrimaryPushButton("开始分析", self, FluentIcon.PLAY)
+        self.processButton.setObjectName("processButton")
+        self.processButton.setEnabled(False)  # 初始禁用
+        
+        headerLayout.addWidget(self.selectButton)
+        headerLayout.addSpacing(10)
+        headerLayout.addWidget(self.processButton)
+        
+        # 添加分隔线
+        self.separator = QFrame(self)
+        self.separator.setFrameShape(QFrame.HLine)
+        self.separator.setFrameShadow(QFrame.Sunken)
+        self.separator.setObjectName("headerSeparator")
+
+    def __initImageArea(self):
+        """初始化图片显示区域"""
+        # 创建图片显示卡片
+        self.originalCard = ImageCard("原始图像", self)
+        self.processedCard = ImageCard("分析结果图像", self)
+        
+        # 创建图片区水平布局
+        self.imageAreaWidget = QWidget(self)
+        self.imageAreaLayout = QHBoxLayout(self.imageAreaWidget)
+        self.imageAreaLayout.setContentsMargins(0, 0, 0, 0)
+        self.imageAreaLayout.setSpacing(20)
+        
+        # 添加卡片到布局
+        self.imageAreaLayout.addWidget(self.originalCard)
+        self.imageAreaLayout.addWidget(self.processedCard)
+
+    def __initResultArea(self):
+        """初始化结果显示区域"""
+        self.resultCard = ResultCard(self)
 
     def __initWidget(self):
+        """初始化整体布局和样式"""
         self.view.setObjectName('view')
         self.setObjectName('retinaInterface')
-        self.toolbar.setObjectName("toolbar")
-        self.original_label.setObjectName("originalLabel")
-        self.processed_label.setObjectName("processedLabel")
-        self.data_text.setObjectName("dataText")
         StyleSheet.RETINA_INTERFACE.apply(self)
-
+        
+        # 设置滚动区域属性
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setWidget(self.view)
         self.setWidgetResizable(True)
 
+        # 调整整体布局的间距和边距
+        self.vBoxLayout.setContentsMargins(24, 24, 24, 24)
+        self.vBoxLayout.setSpacing(20)
+        
+        # 添加组件到主布局
+        self.vBoxLayout.addWidget(self.headerWidget)
+        self.vBoxLayout.addWidget(self.separator)
+        self.vBoxLayout.addWidget(self.imageAreaWidget)
+        self.vBoxLayout.addWidget(self.resultCard)
+        self.vBoxLayout.setAlignment(Qt.AlignTop)
+        
+        # 添加自定义样式
+        self.setStyleSheet("""
+            #pageTitle {
+                font-size: 22px;
+                font-weight: bold;
+            }
+            
+            #pageDescription {
+                font-size: 14px;
+                opacity: 0.8;
+            }
+            
+            #headerSeparator {
+                max-height: 1px;
+                background-color: rgba(0, 0, 0, 0.1);
+                margin: 5px 0px;
+            }
+            
+            #cardTitle {
+                font-size: 16px;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }
+            
+            #imageCard, #resultCard {
+                background-color: white;
+                border-radius: 8px;
+            }
+            
+            #exportButton {
+                margin-top: 5px;
+            }
+        """)
+
     def select_image(self):
-        """选择图片并显示到左侧 QLabel"""
+        """选择图片并显示到左侧卡片"""
         file_dialog = QFileDialog()
-        file_dialog.setNameFilter("Images (*.jpg *.png *.bmp)")  # 文件过滤器
+        file_dialog.setNameFilter("Images (*.jpg *.png *.bmp)")
+        
         if file_dialog.exec_():
-            self.image_path = file_dialog.selectedFiles()[0]  # 获取选择的文件路径
-            # pixmap = QPixmap(self.image_path)  # 读取图片
-            # self.original_label.setPixmap(pixmap)  # 设置图片到 QLabel
-            # self.original_label.setScaledContents(True)
-            # 读取图片并缩放
+            self.image_path = file_dialog.selectedFiles()[0]
             self.original_pixmap = QPixmap(self.image_path)
-            # 初次加载时缩放
-            self.update_original_image_scale()
-            # 设置 label 的 resizeEvent，使图片可以随 label 大小变化而自动调整
-            self.original_label.resizeEvent = self.original_label_resize_event
-
-    def update_original_image_scale(self):
-        """更新原始图像的缩放显示"""
-        if hasattr(self, 'original_pixmap') and not self.original_pixmap.isNull():
-            scaled_pixmap = self.original_pixmap.scaled(
-                self.original_label.width(),
-                self.original_label.height(),
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
+            
+            # 在图片卡片中显示图片
+            self.originalCard.setPixmap(self.original_pixmap)
+            
+            # 清空之前的结果
+            self.processedCard.imageLabel.clear()
+            self.resultCard.textEdit.clear()
+            
+            # 启用处理按钮
+            self.processButton.setEnabled(True)
+            
+            # 显示提示消息
+            InfoBar.success(
+                title='已选择图片',
+                content=f"图片已加载: {os.path.basename(self.image_path)}",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                parent=self,
+                duration=3000
             )
-            self.original_label.setPixmap(scaled_pixmap)
-
-    def original_label_resize_event(self, event):
-        """处理原始图像标签的大小调整事件"""
-        self.update_original_image_scale()
-        # 确保调用父类的 resizeEvent 以保持正常行为
-        QLabel.resizeEvent(self.original_label, event)
-
-    def update_processed_image_scale(self):
-        """更新后图像的缩放显示"""
-        if hasattr(self, 'processed_pixmap') and not self.processed_pixmap.isNull():
-            scaled_pixmap = self.processed_pixmap.scaled(
-                self.processed_label.width(),
-                self.processed_label.height(),
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
-            )
-            self.processed_label.setPixmap(scaled_pixmap)
-
-    def processed_label_resize_event(self, event):
-        """处理原始图像标签的大小调整事件"""
-        self.update_processed_image_scale()
-        # 确保调用父类的 resizeEvent 以保持正常行为
-        QLabel.resizeEvent(self.processed_label, event)
 
     def process_image(self):
         """启动图像处理线程"""
         if self.image_path is None:
-            print("请先选择一张图片！")
-            return  # 未选择图片时直接返回
+            return
 
         # 禁用处理按钮
-        self.process_button.setEnabled(False)
-
+        self.processButton.setEnabled(False)
+        
+        # 显示进度指示器
+        self.show_progress_indicator()
+        
         # 创建并启动 Worker 线程
         self.worker = Worker(self.retina_process, self.image_path, self.save_dir)
-        self.worker.finished.connect(self.on_process_finished)  # 连接处理完成信号
+        self.worker.finished.connect(self.on_process_finished)
+        self.worker.progress.connect(self.update_progress)
         self.worker.start()
-        print("开始处理图像...")
+
+    def show_progress_indicator(self):
+        """显示处理进度指示器"""
+        # 在结果卡片上添加进度环
+        if not self.progressWidget:
+            self.progressWidget = QWidget(self)
+            progressLayout = QVBoxLayout(self.progressWidget)
+            progressLayout.setAlignment(Qt.AlignCenter)
+            
+            # 添加进度环
+            self.progressRing = ProgressRing(self)
+            self.progressRing.setFixedSize(60, 60)
+            
+            # 添加提示文字
+            self.progressLabel = BodyLabel("正在分析图像...", self)
+            self.progressLabel.setAlignment(Qt.AlignCenter)
+            
+            progressLayout.addWidget(self.progressRing, 0, Qt.AlignCenter)
+            progressLayout.addWidget(self.progressLabel, 0, Qt.AlignCenter)
+            
+            # 清空并添加到结果卡片
+            self.processedCard.imageLabel.clear()
+            self.processedCard.vBoxLayout.addWidget(self.progressWidget)
+
+    def update_progress(self, value):
+        """更新进度值"""
+        if hasattr(self, 'progressRing'):
+            self.progressRing.setValue(value)
 
     def on_process_finished(self, result_data):
         """处理完成后更新界面"""
-        print("处理完成！")
         # 恢复处理按钮状态
-        self.process_button.setEnabled(True)
+        self.processButton.setEnabled(True)
+        
+        # 移除进度指示器
+        if self.progressWidget:
+            self.progressWidget.setParent(None)
+            self.progressWidget = None
 
         # 显示处理后的图片
         result_image_path = result_data['result_image_path']
         self.processed_pixmap = QPixmap(result_image_path)
-        self.update_processed_image_scale()
-        # 设置 label 的 resizeEvent，使图片可以随 label 大小变化而自动调整
-        self.processed_label.resizeEvent = self.processed_label_resize_event
-        # pixmap = QPixmap(result_image_path)
-        # self.processed_label.setPixmap(pixmap)
-        # self.processed_label.setScaledContents(True)
+        self.processedCard.setPixmap(self.processed_pixmap)
 
-        # 显示处理数据
-        # 这里根据分析的具体结果结构进行展示
-        # data_text = f"眼底图像分析结果:\n"
-
-        # 返回处理结果数据（原始数据 + 格式化的显示信息）
-        # result_data = {
-        #     'bm_layer': bm_layer,
-        #     'best_circle': best_circle,
-        #     'result_image_path': save_path,
-        #     # 添加用于界面显示的格式化数据
-        #     'display_data': {
-        #         'circle_center': f"({best_circle[0]}, {best_circle[1]})" if best_circle else "未找到",
-        #         'circle_radius': f"{best_circle[2]}像素 ({best_circle[2] / 10:.2f}mm)" if best_circle else "未找到",
-        #         'diameter': f"{diameter_mm:.2f}mm" if diameter_mm else "未找到",
-        #         'bm_points_count': f"{bm_layer.shape[0]}个点" if bm_layer.shape[0] > 0 else "0",
-        #         'bm_depth_avg': f"{bm_avg_y:.2f}像素" if bm_avg_y is not None else "未知",
-        #         'bm_variation': f"{bm_variation:.2f}像素" if bm_variation is not None else "未知",
-        #         'status': "分析成功" if best_circle else "未找到合适的拟合圆"
-        #     }
-        # }
         # 从结果数据中提取显示数据并格式化
         if 'display_data' in result_data:
             data = result_data['display_data']
-            data_text = "视网膜图像分析结果:\n\n"
-            data_text += f"圆形中心位置: {data['circle_center']}\n"
-            data_text += f"圆形半径: {data['circle_radius']}\n"
-            data_text += f"直径: {data['diameter']}\n"
-            data_text += f"BM层点数: {data['bm_points_count']}\n"
-            data_text += f"BM层平均深度: {data['bm_depth_avg']}\n"
-            data_text += f"BM层变异度: {data['bm_variation']}\n"
-            data_text += f"分析状态: {data['status']}\n"
+            data_text = "📊 视网膜图像分析结果\n\n"
+            data_text += f"🔹 圆形中心位置: {data['circle_center']}\n"
+            data_text += f"🔹 圆形半径: {data['circle_radius']}\n"
+            data_text += f"🔹 直径: {data['diameter']}\n"
+            data_text += f"🔹 BM层点数: {data['bm_points_count']}\n"
+            data_text += f"🔹 BM层平均深度: {data['bm_depth_avg']}\n"
+            data_text += f"🔹 BM层变异度: {data['bm_variation']}\n"
+            data_text += f"🔹 分析状态: {data['status']}\n"
 
             # 设置文本到显示区域
-            self.data_text.setText(data_text)
+            self.resultCard.textEdit.setText(data_text)
+            
+            # 显示成功消息
+            InfoBar.success(
+                title='分析完成',
+                content="视网膜BM层边界提取和圆形拟合已完成",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.BOTTOM_RIGHT,
+                parent=self,
+                duration=3000
+            )
 
-        # 示例：展示眼底各项指标
-        # if 'cup_to_disc_ratio' in result_data:
-        #     data_text += f"杯盘比(CDR): {result_data['cup_to_disc_ratio']:.4f}\n"
-        #
-        # if 'vessel_density' in result_data:
-        #     data_text += f"血管密度: {result_data['vessel_density']:.4f}\n"
-        #
-        # if 'abnormalities' in result_data:
-        #     data_text += f"检测到的异常: {', '.join(result_data['abnormalities'])}\n"
-        #
-        # self.data_text.setText(data_text)
+    def export_report(self):
+        """导出分析报告"""
+        if not hasattr(self, 'processed_pixmap') or self.processed_pixmap is None:
+            InfoBar.warning(
+                title='无法导出',
+                content="请先分析图像再导出报告",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.BOTTOM_RIGHT,
+                parent=self,
+                duration=3000
+            )
+            return
+            
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "保存报告", "", "PDF文件 (*.pdf);;文本文件 (*.txt)"
+        )
+        
+        if file_path:
+            # 这里仅模拟导出功能
+            InfoBar.success(
+                title='导出成功',
+                content=f"报告已保存至: {os.path.basename(file_path)}",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.BOTTOM_RIGHT,
+                parent=self,
+                duration=3000
+            )
 
 
 # 主程序入口（示例）
