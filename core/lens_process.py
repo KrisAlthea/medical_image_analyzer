@@ -1,296 +1,272 @@
 import os
 import torch
-import cv2 as cv
-from .unet_lens import UNet
+import cv2
 import numpy as np
 from sklearn.cluster import DBSCAN
-import matplotlib
-
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
-
-"""
-总结性笔记 
-实现了一个完整的图像处理 lens_process，利用 UNet 模型进行语义分割，
-并对分割结果进行后处理以提取和优化边界点集，最终在原始图像上可视化边界。
-整个流程包括模型加载、图像预处理、模型预测、边界点提取、噪声去除、边界拟合和结果可视化。
-代码结构清晰，功能模块化，易于理解和扩展。
-"""
+from unet_lens import UNet
 
 
 class LensProcess:
     """
-    图像处理管道类
-
-    本类封装了对输入图像进行语义分割、边界点提取、噪声去除、二次多项式拟合
-    及结果可视化和保存的完整流程。
+    基于UNet的镜片图像处理管道，包含以下步骤：
+    1. 语义分割
+    2. 边界点提取
+    3. 噪声点去除
+    4. 二次曲线拟合
+    5. 圆拟合与曲率计算
+    6. 可视化并保存结果
     """
 
-    def __init__(self, model_path="../models/lens.pth"):
+    def __init__(self):
         """
-        初始化语义分割模型
+        初始化方法：
+        - 确定计算设备
+        - 加载UNet模型权重
+        - 切换模型至评估模式
+        """
+        # 判断是否有可用GPU
+        has_cuda = torch.cuda.is_available()
+        if has_cuda:
+            self.device = torch.device('cuda')
+        else:
+            self.device = torch.device('cpu')
 
-        :param model_path: 最佳分割模型权重文件的路径
-        :param device: 指定计算设备，若未指定则自动选择GPU（若可用）或CPU
-        """
-        # 1.1 确定计算设备（GPU或CPU）
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # 1.2 初始化UNet模型（in_channels=3, n_classes=2, channels=96）
+        # 初始化UNet网络结构，输入通道为3，输出类别数为2，基础通道数为96
         self.net = UNet(in_channels=3, n_classes=2, channels=96)
-        # 1.3 加载预训练权重（weights_only方式）
-        self.net.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
-        self.net.to(self.device)
-        self.net.eval()  # 设置为评估模式
 
-    def unet_seg_method(self, image):
+        # 将模型移动到指定设备
+        self.net = self.net.to(self.device)
+
+        # 构造模型权重文件路径
+        base_dir = os.path.dirname(__file__)
+        model_file = os.path.join(base_dir, '..', 'models', 'lens.pth')
+
+        # 加载权重（仅权重部分）
+        state = torch.load(model_file, map_location=self.device, weights_only=True)
+        self.net.load_state_dict(state)
+
+        # 设置模型为评估模式，关闭Dropout和BatchNorm等训练行为
+        self.net.eval()
+
+    def unet_seg(self, image: np.ndarray) -> np.ndarray:
         """
-        使用UNet模型对输入图像进行语义分割。
-
-        :param image: 输入的原始图像，opencv读取，形状为(1024, 1440, 3)
-        :return: 分割结果，形状为(1024, 1440)，每个像素的分类标签（0或1）
+        使用UNet对输入图像执行语义分割，返回二值掩码
+        :param image: 原始BGR图像，形状HxWx3
+        :return: 分割掩码，形状HxW，值为0或1
         """
-        ##############################
-        # 二、图像预处理
-        ##############################
-        # 2.1 调整通道顺序为 (C, H, W) 并转换为浮点型
-        image = image.transpose(2, 0, 1).astype(np.float32)
-        # 2.2 转换为PyTorch张量并添加批次维度
-        image = torch.from_numpy(np.ascontiguousarray(image)).unsqueeze(0)
-        # 2.3 将图像移到指定设备
-        image = image.to(device=self.device, dtype=torch.float32)
+        # 将图像从HWC转为CHW顺序，并转换为浮点型
+        chw = image.transpose(2, 0, 1).astype(np.float32)
 
-        ##############################
-        # 三、模型预测
-        ##############################
-        # 3.1 执行前向传播，获取预测结果
+        # 创建批次维度
+        batch = np.expand_dims(chw, axis=0)
+
+        # 转换为PyTorch张量，并送入设备
+        tensor = torch.from_numpy(batch).to(self.device)
+        tensor = tensor.float()
+
+        # 关闭梯度计算，加速推理
         with torch.no_grad():
-            pred = self.net(image)
-        # 3.2 取最大概率的类别并转换为numpy数组
-        pred = torch.argmax(pred, dim=1)
-        pred = pred.cpu().detach().numpy()[0, :, :]
+            logits = self.net(tensor)
+
+        # 获取类别概率最高的索引，转为NumPy数组并移至CPU
+        pred = torch.argmax(logits, dim=1).cpu().numpy()[0]
+
+        # 返回二值化分割结果
         return pred
 
     @staticmethod
-    def get_up_and_down_pointer_list(pred):
+    def get_boundaries(pred: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
-        从UNet的分割结果中提取上边界和下边界点集。
-
-        :param pred: UNet的分割结果，形状为(1024, 1440)，像素值为0或1
-        :return: up_data: 上边界点集，形状为(N, 2)，每行是(x, y)
-                 down_data: 下边界点集，形状为(M, 2)，每行是(x, y)
+        从二值掩码中提取上下边界点集：
+        - 上边界取每列第一个值1的位置
+        - 下边界取每列最后一个值1的位置
+        坐标y反向处理，方便绘制
+        :param pred: 分割掩码，HxW
+        :return: (上边界点数组, 下边界点数组)，均为Nx2形式 (x, y)
         """
-        # 获取图像尺寸
-        w, h = pred.shape
+        height, width = pred.shape
+        up_points = []
+        down_points = []
 
-        ##############################
-        # 一、下边界计算
-        ##############################
-        y_down = []
-        x_down = []
-        for i in range(h):
-            now_i = pred[:, i]
-            # 找到当前列中值为1的像素位置
-            now_i = np.where(now_i == 1)[0]
-            if len(now_i) != 0:
-                # 取最后一个1作为下边界，y坐标取负值以适应图像坐标系
-                y_down.append(-now_i[-1])
-                x_down.append(i)
-        down_data = np.array([x_down, y_down]).transpose(1, 0)
+        # 遍历每一列，提取边界
+        for col_idx in range(width):
+            column = pred[:, col_idx]
+            indices = np.where(column == 1)[0]
 
-        ##############################
-        # 二、上边界计算
-        ##############################
-        # 2.1 按列找到第一个值为1的位置（转为负值）
-        y = (np.argmax(pred, axis=0) * -1).tolist()
-        x_up_list = []
-        y_up_list = []
-        for i in range(len(y)):
-            if y[i] != 0:  # 排除全为0的列
-                y_up_list.append(y[i])
-                x_up_list.append(i)
-        up_data = np.array([x_up_list, y_up_list]).transpose(1, 0)
-        return up_data, down_data
+            if indices.size > 0:
+                first = indices[0]
+                last = indices[-1]
+
+                # 上边界点 (x, y)
+                up_points.append([col_idx, -first])
+                # 下边界点 (x, y)
+                down_points.append([col_idx, -last])
+
+        up_arr = np.array(up_points)
+        down_arr = np.array(down_points)
+        return up_arr, down_arr
 
     @staticmethod
-    def get_best_dist(data, k):
+    def remove_noise(
+            pts: np.ndarray,
+            eps: float = None,
+            min_samples: int = 2
+    ) -> np.ndarray:
         """
-        计算每个点到其第k个最近邻的距离，用于DBSCAN的eps参数选择。
+        使用DBSCAN算法去除边界点集中的噪声：
+        - 若未指定eps，则自动估计一个合适值
+        - 之后聚类，保留最大簇
+        :param pts: 原始点集，Nx2
+        :param eps: 邻域半径
+        :param min_samples: 最小样本数
+        :return: 去噪后点集，Mx2
+        """
+        # 如果未传入eps，则进行估计
+        if eps is None:
+            # 计算所有点之间的距离矩阵
+            dist_matrix = np.sqrt(((pts[:, None] - pts) ** 2).sum(axis=2))
+            # 取每行第min_samples最近的距离
+            k = min_samples
+            kth_distances = np.partition(dist_matrix, k, axis=1)[:, k]
+            # 选择中位数作为eps
+            eps = float(np.median(kth_distances))
 
-        :param data: 点集，形状为(N, 2)
-        :param k: 第k个最近邻
-        :return: k_dist: 每个点到其第k个最近邻的距离列表
-        """
-        k_dist = []
-        for i in range(data.shape[0]):
-            # 计算当前点与其他所有点的欧几里得距离
-            dist = (((data[i] - data) ** 2).sum(axis=1) ** 0.5)
-            dist.sort()  # 升序排序
-            k_dist.append(dist[k])  # 取第k个距离
-        return np.array(k_dist)
+        # 创建DBSCAN模型并预测标签
+        db = DBSCAN(eps=eps, min_samples=min_samples)
+        labels = db.fit_predict(pts)
+
+        # 统计各簇大小，忽略噪声(-1)
+        unique_labels, counts = np.unique(labels, return_counts=True)
+        label_counts = dict(zip(unique_labels, counts))
+        if -1 in label_counts:
+            del label_counts[-1]
+
+        # 选取最大簇标签
+        main_label = max(label_counts, key=label_counts.get)
+
+        # 返回属于主簇的点
+        return pts[labels == main_label]
 
     @staticmethod
-    def delete_error_pointer(data, k=1, d=15):
+    def fit_quadratic(
+            img: np.ndarray,
+            pts: np.ndarray
+    ) -> tuple[np.poly1d, np.ndarray, np.ndarray]:
         """
-        使用DBSCAN算法去除点集中的噪声点。
-
-        :param data: 待处理的点集，形状为(N, 2)
-        :param k: DBSCAN的min_samples参数减1
-        :param d: 用于选择eps的超参数
-        :return: new_data: 去除噪声后的点集
+        对边界点进行二次多项式拟合，并绘制拟合曲线点
+        :param img: 原始图像
+        :param pts: 无噪声点集，Nx2
+        :return: (拟合多项式, x, y)
         """
-        ##############################
-        # 一、DBSCAN算法
-        ##############################
-        # 1.1 计算每个点的k-近邻距离并排序
-        k_dist = LensProcess.get_best_dist(data, k)
-        k_dist.sort()
-        eps = k_dist[::-1][d]  # 倒序取第d个距离作为eps
-        # 1.2 应用DBSCAN聚类
-        dbscan_model = DBSCAN(eps=eps, min_samples=k + 1)
-        label = dbscan_model.fit_predict(data)
-        # 1.3 统计每个簇的点索引
-        label_dist = {}
-        for index, value in enumerate(label):
-            if value not in label_dist:
-                label_dist[value] = []
-            label_dist[value].append(index)
+        x = pts[:, 0]
+        y = pts[:, 1]
+        # 多项式拟合
+        coefficients = np.polyfit(x, y, 2)
+        poly = np.poly1d(coefficients)
+        y_fit = poly(x)
 
-        # 1.4 找出最大簇
-        label_dist_len = {key: len(label_dist[key]) for key in label_dist}
-        label_dist_list = sorted(label_dist_len.items(), key=lambda x: x[1])
-        index_max_1 = label_dist_list[-1][0]  # 最大簇的标签
-        new_data = data[label_dist[index_max_1]]
-        # 1.5 如果最大簇点数不足一半，加入第二大簇
-        if len(new_data) < len(data) / 2:
-            index_max_2 = label_dist_list[-2][0]
-            new_data = np.concatenate((new_data, data[label_dist[index_max_2]]))
-        return new_data
+        # 在图像上绘制拟合点
+        for xi, yi in zip(x, y_fit):
+            pt = (int(xi), int(-yi))
+            cv2.circle(img, pt, radius=2, color=(0, 255, 0), thickness=-1)
+
+        return poly, x, y_fit
 
     @staticmethod
-    def fit_equation(data):
+    def fit_circle(
+            img: np.ndarray,
+            x: np.ndarray,
+            y: np.ndarray
+    ) -> tuple[int, float]:
         """
-        对点集进行二次多项式拟合，生成边界方程。
-
-        :param data: 无噪声的点集，形状为(N, 2)
-        :return: p1: 拟合的二次多项式函数
-                 new_x, new_y: 拟合曲线上的点
+        基于代数方法拟合圆，并计算曲率：
+        - 构造方程组 Ax = b
+        - 最小二乘解
+        - 提取圆心和半径
+        :param img: 原始图像
+        :param x: 点集x坐标
+        :param y: 点集y坐标（已取反）
+        :return: (半径R, 曲率1/R)
         """
-        # 分离x和y坐标
-        x, y = data[:, 0], data[:, 1]
-        # 进行二次多项式拟合
-        z1 = np.polyfit(x, y, 2)
-        p1 = np.poly1d(z1)
-        # 计算拟合曲线的点
-        new_x = x
-        new_y = p1(new_x)
-        return p1, new_x, new_y
+        # 恢复实际y坐标
+        y_true = -y.astype(float)
+        x_true = x.astype(float)
+        # 构造矩阵A和向量b
+        A = np.vstack([x_true, y_true, np.ones_like(x_true)]).T
+        b_vec = -(x_true ** 2 + y_true ** 2)
+        # 求解参数D,E,F
+        D, E, F = np.linalg.lstsq(A, b_vec, rcond=None)[0]
 
-    def process_lens(self, image_path, save_dir):
+        # 计算圆心坐标(a,b)和半径R
+        a = -D / 2
+        b0 = -E / 2
+        R = np.sqrt(a * a + b0 * b0 - F)
+        curvature = 1.0 / R if R > 0 else 0
+
+        # 绘制圆心和圆轮廓
+        center = (int(a), int(b0))
+        cv2.circle(img, center, radius=5, color=(255, 0, 0), thickness=-1)
+        cv2.circle(img, center, radius=int(R), color=(0, 0, 255), thickness=2)
+
+        return int(R), curvature
+
+    def process(self, path: str) -> dict:
         """
-        完整图像处理流程：
-          1. 读取并调整图像大小；
-          2. 使用UNet模型进行语义分割；
-          3. 提取上/下边界点集；
-          4. 利用DBSCAN去除噪声；
-          5. 对边界点进行二次多项式拟合；
-          6. 在原始图像上绘制拟合结果；
-          7. 保存最终结果图像到指定目录。
-          8. 返回处理结果数据
-
-        :param image_path: 原始图像文件路径
-        :param save_dir: 保存结果图像的文件夹路径
+        主流程函数：
+        1. 读取图像
+        2. 语义分割
+        3. 边界提取
+        4. 上下边界去噪、拟合与绘制
+        5. 保存结果
+        :param path: 输入图像文件路径
+        :return: 结果字典，包括上下边界半径、曲率和输出图像路径
         """
-        print(f"Processing image: {image_path}")
-        # 读取图像并调整大小为 (1440, 1024)
-        img = cv.imread(image_path)
-        img = cv.resize(img, (1440, 1024))
+        # 1. 读取并缩放图像到固定尺寸
+        img = cv2.imread(path)
+        img = cv2.resize(img, (1440, 1024))
 
-        # -------------------------------
-        # 语义分割
-        # -------------------------------
-        # 执行UNet语义分割，获得预测结果
-        pred = self.unet_seg_method(img)
-        # 可选：显示分割结果（注释掉的部分可根据需要打开）
-        # plt.imshow(pred)
-        # plt.title("Segmentation Result")
-        # plt.show()
+        # 2. 执行分割
+        mask = self.unet_seg(img)
 
-        # -------------------------------
-        # 边界点提取
-        # -------------------------------
-        up_data, down_data = LensProcess.get_up_and_down_pointer_list(pred)
-        # 可选：显示提取的边界点
-        # plt.subplot(1, 2, 1)
-        # plt.scatter(up_data[:, 0], up_data[:, 1])
-        # plt.title("Upper Boundary Points")
-        # plt.subplot(1, 2, 2)
-        # plt.scatter(down_data[:, 0], down_data[:, 1])
-        # plt.title("Lower Boundary Points")
-        # plt.show()
+        # 3. 提取上下边界点集
+        up_pts, down_pts = self.get_boundaries(mask)
 
-        # -------------------------------
-        # 上边界处理
-        # -------------------------------
-        # 去除噪声
-        up_data = LensProcess.delete_error_pointer(up_data, k=5, d=15)
-        # 拟合上边界
-        p1_up, up_x, up_y = LensProcess.fit_equation(up_data)
-        # 在图像上绘制上边界拟合曲线（绿色圆点）
-        for i in range(len(up_x)):
-            cv.circle(img, (int(up_x[i]), int(-up_y[i])), 2, (0, 255, 0), -1)
+        # 4. 上边界去噪、拟合
+        up_clean = self.remove_noise(up_pts, min_samples=6)
+        poly_up, ux, uy = self.fit_quadratic(img, up_clean)
+        up_radius, up_curv = self.fit_circle(img, ux, uy)
 
-        # -------------------------------
-        # 下边界处理
-        # -------------------------------
-        # 去除噪声
-        down_data = LensProcess.delete_error_pointer(down_data)
-        # 拟合下边界
-        p1_down, down_x, down_y = LensProcess.fit_equation(down_data)
-        # 在图像上绘制下边界拟合曲线（绿色圆点）
-        for i in range(len(down_x)):
-            cv.circle(img, (int(down_x[i]), int(-down_y[i])), 2, (0, 255, 0), -1)
+        # 5. 下边界去噪、拟合
+        down_clean = self.remove_noise(down_pts)
+        poly_down, dx, dy = self.fit_quadratic(img, down_clean)
+        down_radius, down_curv = self.fit_circle(img, dx, dy)
 
-        # -------------------------------
-        # 保存结果
-        # -------------------------------
-        # 获取原文件名（不含路径）
-        filename = os.path.basename(image_path)
-        # 分离文件名和扩展名
-        name, ext = os.path.splitext(filename)
-        # 生成新的文件名，例如 "1-1-output.jpg"
-        new_filename = f"{name}-output{ext}"
-        # 组合保存路径
-        save_path = os.path.join(save_dir, new_filename)
-        cv.imwrite(save_path, img)
-        print(f"Image saved to: {save_path}")
+        # 6. 构造输出目录并保存图像
+        output_dir = os.path.join(
+            r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\output",
+            "lens"
+        )
+        os.makedirs(output_dir, exist_ok=True)
 
-        # 可选：显示最终结果和其他中间结果（可根据需要取消注释）
-        # cv.imshow('原始图像', img)
-        # cv.imshow('分割结果', (pred * 255).astype(np.uint8))  # 假设 pred 是 0/1 的掩膜
-        # cv.waitKey(0)
-        # cv.destroyAllWindows()
-        # plt.close('all')  # 确保关闭所有 matplotlib 窗口
+        filename = os.path.splitext(os.path.basename(path))[0]
+        save_path = os.path.join(output_dir, f"{filename}-output.jpg")
+        cv2.imwrite(save_path, img)
 
-        # 返回处理结果数据
-        result_data = {
-            'up_boundary_points': up_data,
-            'down_boundary_points': down_data,
-            'up_fitting_equation': p1_up,
-            'down_fitting_equation': p1_down,
+        # 7. 返回处理结果
+        result = {
+            'up_radius': up_radius,
+            'up_curvature': up_curv,
+            'down_radius': down_radius,
+            'down_curvature': down_curv,
             'result_image_path': save_path
         }
-        return result_data
+        return result
 
 
-# 主程序入口
 if __name__ == "__main__":
-    # 指定最佳模型路径
-    best_model_path = "../models/lens.pth"
-    # 实例化图像处理管道类
-    lens_process = LensProcess(best_model_path)
-    # 指定输入图像路径
-    image_path = r"D:\Code\PyCharm_ws\medical_image_analyzer\data\lens\1-1.jpg"
-    # 指定结果保存目录
-    save_dir = r"D:\Code\PyCharm_ws\medical_image_analyzer\output\lens"
-    # 调用处理流程并保存结果
-    lens_process.process_lens(image_path, save_dir)
+    # 示例：实例化并处理单张图片
+    base_path = r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\data\lens"
+    img_file = os.path.join(base_path, "8-2.jpg")
+    processor = LensProcess()
+    output = processor.process(img_file)
+    print(output)
