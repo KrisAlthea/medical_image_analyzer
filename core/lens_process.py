@@ -3,7 +3,7 @@ import torch
 import cv2
 import numpy as np
 from sklearn.cluster import DBSCAN
-from unet_lens import UNet
+from .unet_lens import UNet
 
 
 class LensProcess:
@@ -210,7 +210,7 @@ class LensProcess:
 
         return int(R), curvature
 
-    def process(self, path: str) -> dict:
+    def process_lens(self, path: str) -> dict:
         """
         主流程函数：
         1. 读取图像
@@ -268,5 +268,5 @@ if __name__ == "__main__":
     base_path = r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\data\lens"
     img_file = os.path.join(base_path, "8-2.jpg")
     processor = LensProcess()
-    output = processor.process(img_file)
+    output = processor.process_lens(img_file)
     print(output)

@@ -3,7 +3,7 @@ import cv2
 import torch
 import numpy as np
 
-from unet_retina import UNet
+from .unet_retina import UNet
 
 
 class RetinaProcess:

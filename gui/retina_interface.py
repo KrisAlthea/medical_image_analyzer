@@ -1,6 +1,6 @@
 import os
-import sys
 
+import cv2
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QFileDialog
@@ -65,7 +65,6 @@ class ImageCard(CardWidget):
                 Qt.SmoothTransformation
             )
             self.imageLabel.setPixmap(scaled)
-            # self.imageLabel.setMinimumSize(720, 512)
 
     def resizeEvent(self, event):
         """处理大小调整事件"""
@@ -146,14 +145,13 @@ class RetinaInterface(ScrollArea):
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
+        self.resized_path = None
         self.image_path = None
         self.result_path = None
         self.processed_flag = None
 
         self.view = QWidget(self)
         self.vBoxLayout = QVBoxLayout(self.view)
-        self.headerWidget = None
-        self.leftWidget = None
 
         # 初始化界面组件
         self.__initHeader()
@@ -163,14 +161,13 @@ class RetinaInterface(ScrollArea):
         # 连接信号与槽
         self.controlCard.img_select_btn.clicked.connect(self.select_image)  # 选择图片按钮点击事件
         self.controlCard.img_process_btn.clicked.connect(self.process_image)  # 处理图片按钮点击事件
-        self.controlCard.origin_img_btn.clicked.connect(lambda: self.imageCard.setPixmap(QPixmap(self.image_path)))
+        self.controlCard.origin_img_btn.clicked.connect(lambda: self.imageCard.setPixmap(QPixmap(self.resized_path)))
         self.controlCard.result_img_btn.clicked.connect(lambda: self.imageCard.setPixmap(QPixmap(self.result_path)))
         self.resultCard.exportButton.clicked.connect(self.export_report)  # 导出报告按钮点击事件
 
         # 初始化变量
-        self.retina_process = RetinaProcess()
+        self.retina_process = RetinaProcess()  # 实例化处理类
         self.worker = None  # 后台线程实例
-        self.progressWidget = None  # 进度指示器
 
     def __initHeader(self):
         """初始化页面顶部区域"""
@@ -264,9 +261,39 @@ class RetinaInterface(ScrollArea):
             self.imageCard.imageLabel.clear()
             self.resultCard.textEdit.clear()
 
+            # 1. 读取输入灰度图像
+            img = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
+
+            # 3. 将灰度图转换为BGR彩色图，便于绘制彩色标记
+            img_color = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+            # 4. 为后续绘制和适配固定尺寸，计算上下左右的黑色填充（pad）
+            target_h, target_w = 1024, 1440
+            h, w = img_color.shape[:2]
+            pad_h = max(target_h - h, 0)
+            pad_w = max(target_w - w, 0)
+            top, bottom = pad_h // 2, pad_h - pad_h // 2
+            left, right = pad_w // 2, pad_w - pad_w // 2
+
+            # 5. 扩充彩色图像至目标大小，填充值为黑色
+            img_pad = cv2.copyMakeBorder(img_color, top, bottom, left, right,
+                                         cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
+            # 8. 构造输出目录并确保存在，然后保存结果图像
+            output_dir = os.path.join(
+                r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\output",
+                "retina"
+            )
+            os.makedirs(output_dir, exist_ok=True)
+
+            name, ext = os.path.splitext(os.path.basename(self.image_path))
+            save_path = os.path.join(output_dir, f"{name}-resized{ext}")
+            cv2.imwrite(save_path, img_pad)
+
+            self.resized_path = save_path
+
             # 在图片卡片中显示图片
-            self.imageCard.setPixmap(QPixmap(self.image_path))
-            # self.imageCard.imageLabel.setMinimumSize(720, 512)
+            self.imageCard.setPixmap(QPixmap(self.resized_path))
             # 清空之前的结果
             self.resultCard.textEdit.clear()
 
@@ -303,15 +330,25 @@ class RetinaInterface(ScrollArea):
         self.imageCard.setPixmap(QPixmap(self.result_path))
         self.processed_flag = True
 
-        # 从结果数据中提取显示数据并格式化
-        data_text = "📊 视网膜图像分析结果\n\n"
-        data_text += f"🔹 半径: {result_data['circle_radius']}\n"
-        data_text += f"🔹 曲率: {result_data['circle_curvature']}\n"
-
-        self.resultCard.textEdit.setText(data_text)
-
         # 启用按钮
         self.controlCard.img_process_btn.setEnabled(True)
+
+        # result_data = {
+        #     'circle_radius': r,
+        #     'circle_curvature': 1.0 / r if r != 0 else None,
+        #     'result_image_path': save_path,
+        # }
+
+        # 显示处理结果
+        circle_radius = result_data['circle_radius']
+        circle_curvature = result_data['circle_curvature']
+
+        # 从结果数据中提取显示数据并格式化
+        data_text = (
+            f"圆形半径: {circle_radius:.2f} 像素\n"
+            f"曲率: {circle_curvature:.2f} 像素\n"
+        )
+        self.resultCard.textEdit.setText(data_text)
 
         # 显示成功消息
         InfoBar.success(
@@ -330,7 +367,7 @@ class RetinaInterface(ScrollArea):
 
     def export_report(self):
         """导出分析报告"""
-        if self.processed_flag is None:
+        if self.image_path is None or not self.processed_flag:
             InfoBar.warning(
                 title='无法导出',
                 content="请先分析图像再导出报告",
@@ -361,6 +398,7 @@ class RetinaInterface(ScrollArea):
 
 # 主程序入口（示例）
 if __name__ == "__main__":
+    import sys
     from PyQt5.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
