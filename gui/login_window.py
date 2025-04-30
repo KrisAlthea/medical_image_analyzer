@@ -11,6 +11,7 @@ from qfluentwidgets import (
     InfoBar, InfoBarPosition
 )
 from common.db import check_user, add_user
+from common.style_sheet import StyleSheet
 
 
 class LoginWindow(QDialog):
@@ -133,6 +134,10 @@ class LoginWindow(QDialog):
         # 默认显示登录
         self.pivot.setCurrentItem("login")
         self.stackedWidget.setCurrentWidget(self.login_card)
+
+        # 设置样式表
+        # self.setObjectName("loginWindow")
+        StyleSheet.LOGIN_WINDOW.apply(self)
 
         # 信号绑定
         self.login_btn.clicked.connect(self._on_login)

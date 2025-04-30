@@ -1,17 +1,91 @@
-SettingInterface,
-#view {
+/* 首页（HomeInterface） dark */
+HomeInterface, #view {
     background-color: transparent;
 }
-
-QScrollArea {
+ScrollArea {
     border: none;
     background-color: transparent;
 }
 
+/* 渐变横幅 */
+CardWidget#gradientBanner {
+    background: transparent;
+    border: none;
+}
 
-BannerWidget > #galleryLabel {
-    font: 42px 'Segoe UI SemiBold', 'Microsoft YaHei SemiBold';
-    background-color: transparent;
-    color: white;
-    padding-left: 28px;
+/* 横幅标题 */
+TitleLabel#bannerTitle {
+    font: 24px 'Microsoft YaHei Light';
+    font-weight: 600;
+    color: #FFFFFF;
+}
+BodyLabel#bannerDescription {
+    font: 16px 'Microsoft YaHei Light';
+    color: #C0C4CC;
+}
+
+/* “开始体验”按钮 */
+PrimaryPushButton {
+    background-color: #409EFF;
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 0 12px;
+    min-height: 32px;
+}
+PrimaryPushButton:hover {
+    background-color: #66B1FF;
+}
+
+/* 功能模块标题 */
+SubtitleLabel#sectionTitle {
+    font: 20px 'Microsoft YaHei Light';
+    font-weight: 600;
+    color: #FFFFFF;
+}
+
+/* 功能卡片 */
+CardWidget#functionCard {
+    background-color: rgba(24, 24, 24, 0.85);
+    border-radius: 8px;
+}
+CardWidget#functionCard StrongBodyLabel {
+    font: 16px 'Microsoft YaHei Light';
+    font-weight: 600;
+    color: #FFFFFF;
+}
+CardWidget#functionCard BodyLabel {
+    font: 14px 'Microsoft YaHei Light';
+    color: #C0C4CC;
+}
+TransparentToolButton {
+    color: #C0C4CC;
+}
+TransparentToolButton:hover {
+    color: #409EFF;
+}
+
+/* 页脚 */
+CardWidget#footer {
+    background-color: rgba(24, 24, 24, 0.85);
+    border-radius: 8px;
+}
+SubtitleLabel#tipsLabel {
+    font: 14px 'Microsoft YaHei Light';
+    color: #C0C4CC;
+}
+QFrame#footerSeparator {
+    background-color: #444444;
+    height: 1px;
+    border: none;
+}
+CaptionLabel#versionInfo {
+    font: 12px 'Microsoft YaHei Light';
+    color: #AAAAAA;
+}
+
+/* 弹窗提示（InfoBar） */
+InfoBar {
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #FFFFFF;
 }

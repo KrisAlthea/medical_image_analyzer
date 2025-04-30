@@ -6,6 +6,7 @@ from qfluentwidgets import (NavigationItemPosition, FluentIcon as FIF,
 
 from common.config import cfg
 from common.signal_bus import signalBus
+from common import resource_rc
 from gui.history_interface import HistoryInterface
 from gui.home_interface import HomeInterface
 from gui.lens_interface import LensInterface

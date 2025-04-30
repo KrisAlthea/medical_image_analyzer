@@ -12,6 +12,7 @@ from qfluentwidgets import (
     PushButton, InfoBar, InfoBarPosition
 )
 from common.db import get_connection, clear_history, add_history_record
+from common.style_sheet import StyleSheet
 
 
 class TableCard(CardWidget):
@@ -125,6 +126,8 @@ class HistoryInterface(ScrollArea):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setWidget(self.view)
         self.setWidgetResizable(True)
+
+        StyleSheet.HISTORY_INTERFACE.apply(self)
 
         self.vBoxLayout.setContentsMargins(24, 24, 24, 24)
         self.vBoxLayout.setSpacing(20)

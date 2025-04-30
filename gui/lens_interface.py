@@ -9,6 +9,7 @@ from qfluentwidgets import (ScrollArea, FluentIcon, TextEdit,
                             PushButton, IconWidget)
 
 from common.db import add_history_record
+from common.style_sheet import StyleSheet
 # from common.style_sheet import StyleSheet
 from core.lens_process import LensProcess
 
@@ -236,7 +237,7 @@ class LensInterface(ScrollArea):
         """初始化整体布局和样式"""
         self.view.setObjectName('view')
         self.setObjectName('lensInterface')
-        # StyleSheet.LENS_INTERFACE.apply(self)
+        StyleSheet.LENS_INTERFACE.apply(self)
 
         # 设置滚动区域属性
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)

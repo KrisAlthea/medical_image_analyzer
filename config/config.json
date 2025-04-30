@@ -5,18 +5,18 @@
     "Update": {
         "CheckUpdateAtStartUp": true
     },
-    "Folders": {
-        "Open": "D:/Code/PyCharm_ws/cursor/medical_image_analyzer/data",
-        "Save": "D:/Code/PyCharm_ws/cursor/medical_image_analyzer/output",
-        "LocalImage": []
-    },
     "MainWindow": {
         "DpiScale": "Auto",
         "Language": "zh_CN",
         "MicaEnabled": true
     },
+    "Folders": {
+        "LocalImage": [],
+        "Open": "D:/Code/PyCharm_ws/cursor/medical_image_analyzer/data",
+        "Save": "D:/Code/PyCharm_ws/cursor/medical_image_analyzer/output"
+    },
     "QFluentWidgets": {
-        "ThemeColor": "#ff009faa",
-        "ThemeMode": "Auto"
+        "ThemeColor": "#ff1548ff",
+        "ThemeMode": "Dark"
     }
 }

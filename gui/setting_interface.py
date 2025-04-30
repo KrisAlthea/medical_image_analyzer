@@ -3,16 +3,17 @@ from qfluentwidgets import (SettingCardGroup, SwitchSettingCard, FolderListSetti
                             OptionsSettingCard, PushSettingCard,
                             HyperlinkCard, PrimaryPushSettingCard, ScrollArea,
                             ComboBoxSettingCard, ExpandLayout, Theme, CustomColorSettingCard,
-                            setTheme, setThemeColor, RangeSettingCard, isDarkTheme)
+                            setTheme, setThemeColor, RangeSettingCard, isDarkTheme, IconWidget, SubtitleLabel,
+                            BodyLabel)
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets import InfoBar
 from PyQt5.QtCore import Qt, pyqtSignal, QUrl, QStandardPaths
 from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import QWidget, QLabel, QFileDialog
+from PyQt5.QtWidgets import QWidget, QLabel, QFileDialog, QHBoxLayout, QVBoxLayout
 
 from common.config import cfg, AUTHOR, VERSION, YEAR, isWin11, HELP_URL, FEEDBACK_URL
 from common.signal_bus import signalBus
-# from common.style_sheet import StyleSheet
+from common.style_sheet import StyleSheet
 
 
 class SettingInterface(ScrollArea):
@@ -23,8 +24,9 @@ class SettingInterface(ScrollArea):
         self.scrollWidget = QWidget()
         self.expandLayout = ExpandLayout(self.scrollWidget)
 
+        # self.__initHeader()
         # setting label
-        self.settingLabel = QLabel(self.tr("设置"), self)
+        self.settingLabel = QLabel(self.tr("Settings"), self)
 
         # image folders
         self.imageInThisPCGroup = SettingCardGroup(
@@ -150,6 +152,41 @@ class SettingInterface(ScrollArea):
 
         self.__initWidget()
 
+    def __initHeader(self):
+        """ initialize header """
+        self.headerWidget = QWidget(self)
+        hl = QHBoxLayout(self.headerWidget)
+        hl.setContentsMargins(20, 10, 20, 10)
+
+        # icon
+        icon = IconWidget(FIF.SETTING, self.headerWidget)
+        icon.setFixedSize(32, 32)
+        icon.setObjectName("pageIcon")
+
+        # title
+        title = SubtitleLabel(self.headerWidget)
+        title.setText(self.tr("设置"))
+        title.setObjectName("pageTitle")
+
+        # description
+        desc = BodyLabel(self.headerWidget)
+        desc.setText(self.tr("配置应用程序的外观和行为"))
+        desc.setObjectName("pageDescription")
+
+        # set title and description layout
+        text_layout = QVBoxLayout()
+        text_layout.setSpacing(0)
+        text_layout.addWidget(title)
+        text_layout.addWidget(desc)
+
+        # layout
+        hl.addWidget(icon)
+        hl.addSpacing(10)
+        hl.addLayout(text_layout)
+        hl.addStretch(1)
+
+        self.expandLayout.addWidget(self.headerWidget)
+
     def __initWidget(self):
         # self.resize(1000, 720)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -161,7 +198,7 @@ class SettingInterface(ScrollArea):
         # initialize style sheet
         self.scrollWidget.setObjectName('scrollWidget')
         self.settingLabel.setObjectName('settingLabel')
-        # StyleSheet.SETTING_INTERFACE.apply(self)
+        StyleSheet.SETTING_INTERFACE.apply(self)
 
         self.micaCard.setEnabled(isWin11())
 

@@ -10,6 +10,7 @@ from qfluentwidgets import (ScrollArea, FluentIcon, TextEdit,
                             PushButton, IconWidget, ImageLabel)
 
 from common.db import add_history_record
+from common.style_sheet import StyleSheet
 # from common.style_sheet import StyleSheet
 from core.retina_process import RetinaProcess
 
@@ -237,7 +238,7 @@ class RetinaInterface(ScrollArea):
         """初始化整体布局和样式"""
         self.view.setObjectName('view')
         self.setObjectName('retinaInterface')
-        # StyleSheet.RETINA_INTERFACE.apply(self)
+        StyleSheet.RETINA_INTERFACE.apply(self)
 
         # 设置滚动区域属性
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)

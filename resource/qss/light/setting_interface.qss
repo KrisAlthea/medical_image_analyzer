@@ -1,10 +1,11 @@
+/* 设置界面 light */
 SettingInterface, #scrollWidget {
     background-color: transparent;
 }
 
 QScrollArea {
-    background-color: transparent;
     border: none;
+    background-color: transparent;
 }
 
 

@@ -1,0 +1,78 @@
+/* 登录页 light */
+LoginWindow, QDialog {
+    /* 与设置页相同：窗口背景透明，由 theme 背后色决定 */
+    background-color: transparent;
+}
+
+CardWidget {
+    /* 卡片：半透明白底 + 圆角 */
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+}
+
+/* 顶部应用名 */
+TitleLabel {
+    font: 20px 'Microsoft YaHei Light';
+    font-weight: 600;
+    color: #303133;
+}
+
+/* 卡片内二级标题 */
+CardWidget > TitleLabel {
+    font: 16px 'Microsoft YaHei Light';
+    font-weight: 500;
+    color: #303133;
+}
+
+/* 输入框 */
+LineEdit, PasswordLineEdit {
+    background-color: #ffffff;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    padding: 6px;
+    color: #606266;
+}
+LineEdit:focus, PasswordLineEdit:focus {
+    /* 聚焦时高亮 */
+    border-color: #409EFF;
+}
+
+/* 普通按钮（“忘记密码”）*/
+PushButton {
+    background: transparent;
+    border: none;
+    color: #409EFF;
+    font-size: 14px;
+}
+
+/* 主要按钮（“登录”/“注册”）*/
+PrimaryPushButton {
+    background-color: #409EFF;
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 0 12px;
+    min-height: 32px;
+}
+PrimaryPushButton:hover {
+    background-color: #66b1ff;
+}
+
+/* Pivot 导航 */
+Pivot {
+    background-color: transparent;
+}
+Pivot QPushButton {
+    color: #606266;
+    font-size: 14px;
+    padding: 4px 8px;
+}
+Pivot QPushButton[selected="true"] {
+    color: #409EFF;
+    font-weight: 600;
+}
+
+/* 弹出提示条（InfoBar）*/
+InfoBar {
+    border-radius: 4px;
+    padding: 8px 12px;
+}

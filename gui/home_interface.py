@@ -7,6 +7,7 @@ from qfluentwidgets import (ScrollArea, IconWidget, TransparentToolButton,
                             StrongBodyLabel, isDarkTheme)
 
 from common.signal_bus import signalBus
+from common.style_sheet import StyleSheet
 
 
 # from common.style_sheet import StyleSheet
@@ -269,7 +270,7 @@ class HomeInterface(ScrollArea):
     def __initWidget(self):
         self.view.setObjectName('view')
         self.setObjectName('homeInterface')
-        # StyleSheet.HOME_INTERFACE.apply(self)
+        StyleSheet.HOME_INTERFACE.apply(self)
 
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setWidget(self.view)

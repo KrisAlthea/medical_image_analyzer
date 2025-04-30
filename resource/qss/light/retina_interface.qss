@@ -1,34 +1,77 @@
-/* 工具栏样式 */
-QWidget#toolbar {
-    background-color: #f0f0f0;
-    padding: 10px;
+/* RetinaInterface 视网膜分析页 light */
+RetinaInterface, #view {
+    /* 与设置页统一：背景透明，由后端主题色承托 */
+    background-color: transparent;
 }
 
-/* 按钮样式 */
-ToolButton {
-    background-color: #0078d7;
-    color: white;
+ScrollArea {
     border: none;
-    padding: 5px 15px;
-    border-radius: 5px;
+    background-color: transparent;
 }
 
-ToolButton:hover {
-    background-color: #005ea2;
+/* 顶部标题区 */
+SubtitleLabel#pageTitle {
+    font: 24px 'Microsoft YaHei Light';
+    font-weight: 600;
+    color: #303133;
+}
+BodyLabel#pageDescription {
+    font: 14px 'Microsoft YaHei Light';
+    color: #606266;
 }
 
-/* 图片标签样式 */
-QLabel {
-    background-color: #ffffff;
-    border: 1px solid #cccccc;
-    padding: 10px;
+/* 卡片通用样式 */
+CardWidget {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
 }
 
-/* 数据展示区样式 */
-QTextEdit {
-    background-color: #ffffff;
-    border: 1px solid #cccccc;
-    padding: 10px;
-    font-family: "Consolas", monospace;
+/* 卡片标题 */
+StrongBodyLabel#cardTitle {
+    font: 18px 'Microsoft YaHei Light';
+    font-weight: 600;
+    color: #303133;
+}
+
+/* 图像展示区 */
+ImageLabel#imageLabel {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 6px;
+}
+
+/* 操作面板按钮 —— 左对齐的文本按钮 */
+#controlCard PushButton {
+    background: transparent;
+    border: none;
+    color: #409EFF;
     font-size: 14px;
+    text-align: left;
+    padding: 6px 0;
 }
+
+/* 结果文本区 */
+TextEdit#resultText {
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 6px;
+    color: #606266;
+}
+
+/* 导出报告按钮 */
+PushButton#exportButton {
+    background-color: #409EFF;
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 4px 12px;
+    min-height: 28px;
+}
+PushButton#exportButton:hover {
+    background-color: #66B1FF;
+}
+
+/* 弹窗提示（InfoBar）*/
+InfoBar {
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+

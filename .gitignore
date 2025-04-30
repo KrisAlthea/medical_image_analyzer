@@ -8,7 +8,7 @@ models/
 output/
 
 # Python
-__pycache__/
+*/__pycache__
 *.py[cod]
 *$py.class
 *.so
@@ -43,3 +43,13 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# 忽略日志文件
+log/
+*.log
+
+# 忽略配置文件
+config/
+
+# 忽略数据文件
+mia.db

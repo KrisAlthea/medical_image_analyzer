@@ -1,5 +1,5 @@
-/* 晶状体分析页 light */
-LensInterface, #view {
+/* 历史记录页 light */
+HistoryInterface, #historyView {
     background-color: transparent;
 }
 ScrollArea {
@@ -18,52 +18,44 @@ BodyLabel#pageDescription {
     color: #606266;
 }
 
-/* 卡片通用样式 */
-CardWidget {
+/* 表格卡片 */
+CardWidget#tableCard {
     background-color: rgba(255, 255, 255, 0.9);
     border-radius: 8px;
 }
-
-/* 卡片标题 */
 StrongBodyLabel#cardTitle {
     font: 18px 'Microsoft YaHei Light';
     font-weight: 600;
     color: #303133;
 }
 
-/* 图像展示区 (QLabel) */
-QLabel#imageLabel {
-    background-color: rgba(0, 0, 0, 0.03);
-    border-radius: 6px;
+/* 数据表格 */
+QTableWidget {
+    background-color: #ffffff;
+    border: 1px solid #dcdfe6;
+    gridline-color: #ebeef5;
+}
+QHeaderView::section {
+    background-color: #f5f7fa;
+    padding: 4px;
+    border: none;
+    font-weight: 600;
+    color: #606266;
+}
+QTableWidget::item {
+    padding: 4px;
+    color: #606266;
 }
 
-/* 操作面板按钮 */
-#controlCard PushButton {
+/* 操作按钮（刷新/清空） */
+HistoryInterface PushButton {
     background: transparent;
     border: none;
     color: #409EFF;
     font-size: 14px;
-    text-align: left;
-    padding: 6px 0;
 }
-
-/* 结果文本区 */
-TextEdit#resultText {
-    background-color: rgba(0, 0, 0, 0.02);
-    border-radius: 6px;
-    color: #606266;
-}
-
-/* 导出报告按钮 */
-PushButton#exportButton {
-    background-color: #409EFF;
-    color: #ffffff;
-    border-radius: 4px;
-    padding: 4px 12px;
-    min-height: 28px;
-}
-PushButton#exportButton:hover {
-    background-color: #66B1FF;
+HistoryInterface PushButton:hover {
+    color: #66B1FF;
 }
 
 /* 弹窗提示（InfoBar） */
