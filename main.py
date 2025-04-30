@@ -4,11 +4,17 @@ import os
 from PyQt5.QtCore import Qt
 
 from common.config import cfg
+from common.db import initialize_db
+from gui.login_window import LoginWindow
 from gui.main_window import MainWindow
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QDialog
 import sys
 
 def main():
+
+    # 初始化数据库
+    initialize_db()
+
     # enable dpi scale
     if cfg.get(cfg.dpiScale) == "Auto":
         QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -23,6 +29,11 @@ def main():
     # create application
     app = QApplication(sys.argv)
     app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings)
+
+    # 弹出登录窗口
+    login = LoginWindow()
+    if login.exec_() != QDialog.Accepted:
+        sys.exit(0)
 
     window = MainWindow()
     window.show()
