@@ -1,8 +1,8 @@
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import (NavigationItemPosition, FluentIcon as FIF,
-                            MSFluentWindow, SystemThemeListener, isDarkTheme, ScrollArea)
+                            MSFluentWindow, SystemThemeListener, isDarkTheme, ScrollArea, SplashScreen)
 
 from common.config import cfg
 from common.signal_bus import signalBus
@@ -29,6 +29,7 @@ class MainWindow(MSFluentWindow):
         self.connectSignalToSlot()
 
         self.initNavigation()
+        self.splashScreen.finish()
 
         # start theme listener
         self.themeListener.start()
@@ -50,6 +51,11 @@ class MainWindow(MSFluentWindow):
 
         self.setMicaEffectEnabled(cfg.get(cfg.micaEnabled))
 
+        # create splash screen
+        self.splashScreen = SplashScreen(self.windowIcon(), self)
+        self.splashScreen.setIconSize(QSize(106, 106))
+        self.splashScreen.raise_()
+
         desktop = QApplication.desktop().availableGeometry()
         w, h = desktop.width(), desktop.height()
         self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
@@ -58,6 +64,8 @@ class MainWindow(MSFluentWindow):
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        if hasattr(self, 'splashScreen'):
+            self.splashScreen.resize(self.size())
 
     def closeEvent(self, e):
         self.themeListener.terminate()
