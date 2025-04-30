@@ -4,7 +4,7 @@ import os
 from PyQt5.QtCore import Qt
 
 from common.config import cfg
-from common.db import initialize_db
+from common.db import initialize_db, get_user_id
 from gui.login_window import LoginWindow
 from gui.main_window import MainWindow
 from PyQt5.QtWidgets import QApplication, QDialog
@@ -34,8 +34,10 @@ def main():
     login = LoginWindow()
     if login.exec_() != QDialog.Accepted:
         sys.exit(0)
+    else:
+        user_id = get_user_id(login.login_user.text())
 
-    window = MainWindow()
+    window = MainWindow(cur_user_id=user_id)
     window.show()
     sys.exit(app.exec_())
 

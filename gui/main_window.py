@@ -6,6 +6,7 @@ from qfluentwidgets import (NavigationItemPosition, FluentIcon as FIF,
 
 from common.config import cfg
 from common.signal_bus import signalBus
+from gui.history_interface import HistoryInterface
 from gui.home_interface import HomeInterface
 from gui.lens_interface import LensInterface
 from gui.retina_interface import RetinaInterface
@@ -13,8 +14,9 @@ from gui.setting_interface import SettingInterface
 
 
 class MainWindow(MSFluentWindow):
-    def __init__(self):
+    def __init__(self, cur_user_id: int):
         super().__init__()
+        self.cur_user_id = cur_user_id
         self.initWindow()
 
         # create system theme listener
@@ -22,8 +24,9 @@ class MainWindow(MSFluentWindow):
 
         # create sub interface
         self.homeInterface = HomeInterface(self)
-        self.lensInterface = LensInterface(self)
-        self.retinaInterface = RetinaInterface(self)
+        self.lensInterface = LensInterface(self, current_user_id=self.cur_user_id)
+        self.retinaInterface = RetinaInterface(self, current_user_id=self.cur_user_id)
+        self.historyInterface = HistoryInterface(self, current_user_id=self.cur_user_id)
         self.settingInterface = SettingInterface(self)
 
         self.connectSignalToSlot()
@@ -42,10 +45,11 @@ class MainWindow(MSFluentWindow):
         self.addSubInterface(self.homeInterface, FIF.HOME, '主页', FIF.HOME_FILL)
         self.addSubInterface(self.lensInterface, FIF.VIEW, '晶状体')
         self.addSubInterface(self.retinaInterface, FIF.VIEW, '视网膜')
+        self.addSubInterface(self.historyInterface, FIF.HISTORY, '历史记录')
         self.addSubInterface(self.settingInterface, FIF.SETTING, '设置', FIF.SETTING, NavigationItemPosition.BOTTOM)
 
     def initWindow(self):
-        self.resize(1080, 720)
+        self.resize(1440, 720)
         self.setWindowIcon(QIcon(r"D:\Code\PyCharm_ws\cursor\medical_image_analyzer\resource\images\logo.png"))
         self.setWindowTitle("眼科图像处理系统")
 

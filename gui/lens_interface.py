@@ -8,7 +8,8 @@ from qfluentwidgets import (ScrollArea, FluentIcon, TextEdit,
                             BodyLabel, InfoBar, InfoBarPosition,
                             PushButton, IconWidget)
 
-from common.style_sheet import StyleSheet
+from common.db import add_history_record
+# from common.style_sheet import StyleSheet
 from core.lens_process import LensProcess
 
 
@@ -143,8 +144,9 @@ class ResultCard(CardWidget):
 
 class LensInterface(ScrollArea):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, current_user_id: int = 0):
         super().__init__(parent=parent)
+        self.current_user_id = current_user_id
         self.image_path = None
         self.result_path = None
         self.processed_flag = None
@@ -206,15 +208,15 @@ class LensInterface(ScrollArea):
 
         # 左侧区域
         self.leftWidget = QWidget(self.centralAreaWidget)
-        self.leftWidget.setMinimumSize(800, 600)
+        self.leftWidget.setMinimumSize(750, 500)
         leftLayout = QVBoxLayout(self.leftWidget)
         # 图片卡片
         self.imageCard = ImageCard("图像", self.centralAreaWidget)
         leftLayout.addWidget(self.imageCard)
         # 右侧区域
         self.rightWidget = QWidget(self.centralAreaWidget)
-        self.rightWidget.setMinimumSize(300, 600)
-        self.rightWidget.setMaximumWidth(400)
+        self.rightWidget.setMinimumSize(250, 500)
+        self.rightWidget.setMaximumWidth(350)
         rightLayout = QVBoxLayout(self.rightWidget)
         # 控制按钮卡片
         self.controlCard = ControlCard(self)
@@ -234,7 +236,7 @@ class LensInterface(ScrollArea):
         """初始化整体布局和样式"""
         self.view.setObjectName('view')
         self.setObjectName('lensInterface')
-        StyleSheet.LENS_INTERFACE.apply(self)
+        # StyleSheet.LENS_INTERFACE.apply(self)
 
         # 设置滚动区域属性
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -334,6 +336,14 @@ class LensInterface(ScrollArea):
             position=InfoBarPosition.BOTTOM_RIGHT,
             parent=self,
             duration=3000
+        )
+
+        # 记录历史
+        add_history_record(
+            original_path=self.image_path,
+            processed_path=self.result_path,
+            operator_id=self.current_user_id,
+            is_retina=False
         )
 
         # 清理线程

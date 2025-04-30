@@ -1,11 +1,15 @@
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal, QSize, QEvent, QTimer
-from PyQt5.QtGui import QPixmap, QDesktopServices, QIcon, QColor, QPainter, QLinearGradient
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGraphicsDropShadowEffect
-from qfluentwidgets import (ScrollArea, SimpleCardWidget, IconWidget, TransparentToolButton,
-                           BodyLabel, CaptionLabel, TitleLabel, CardWidget, 
-                           FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, SubtitleLabel,
-                           StrongBodyLabel, Theme, isDarkTheme)
-from common.style_sheet import StyleSheet
+from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer
+from PyQt5.QtGui import QColor, QPainter, QLinearGradient
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFrame, QGraphicsDropShadowEffect
+from qfluentwidgets import (ScrollArea, IconWidget, TransparentToolButton,
+                            BodyLabel, CaptionLabel, TitleLabel, CardWidget,
+                            FluentIcon, InfoBar, InfoBarPosition, PrimaryPushButton, SubtitleLabel,
+                            StrongBodyLabel, isDarkTheme)
+
+from common.signal_bus import signalBus
+
+
+# from common.style_sheet import StyleSheet
 
 
 class FunctionCard(CardWidget):
@@ -138,9 +142,10 @@ class HomeInterface(ScrollArea):
         self.__initFunctionCards()
         self.__initFooter()
         self.__initWidget()
-        
-        # 导入额外模块
-        from PyQt5.QtCore import QTimer
+
+        # 连接信号到槽函数
+        self.connectSignalToSlot()
+
 
     def __initBanner(self):
         """初始化Banner区域"""
@@ -199,7 +204,7 @@ class HomeInterface(ScrollArea):
         
         # 创建功能卡片容器
         self.cardContainer = QWidget(self)
-        self.cardLayout = QHBoxLayout(self.cardContainer)
+        self.cardLayout = QVBoxLayout(self.cardContainer)
         self.cardLayout.setContentsMargins(36, 10, 36, 10)
         self.cardLayout.setSpacing(30)
         
@@ -218,10 +223,19 @@ class HomeInterface(ScrollArea):
             "识别眼底视网膜BM层，进行圆形拟合并计算关键参数",
             self
         )
+
+        # 创建历史记录卡片
+        self.historyCard = FunctionCard(
+            FluentIcon.HISTORY,
+            "历史记录",
+            "查看和管理所有图像处理操作记录",
+            self
+        )
         
         # 将卡片添加到布局
         self.cardLayout.addWidget(self.lensCard)
         self.cardLayout.addWidget(self.retinaCard)
+        self.cardLayout.addWidget(self.historyCard)
         
     def __initFooter(self):
         """初始化页脚区域"""
@@ -255,7 +269,7 @@ class HomeInterface(ScrollArea):
     def __initWidget(self):
         self.view.setObjectName('view')
         self.setObjectName('homeInterface')
-        StyleSheet.HOME_INTERFACE.apply(self)
+        # StyleSheet.HOME_INTERFACE.apply(self)
 
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setWidget(self.view)
@@ -271,80 +285,20 @@ class HomeInterface(ScrollArea):
         self.vBoxLayout.addStretch(1)
         self.vBoxLayout.addWidget(self.footer)
         self.vBoxLayout.setAlignment(Qt.AlignTop)
+
         
-        # 添加自定义样式
-        self.setStyleSheet("""
-            #bannerTitle {
-                font-size: 28px;
-                font-weight: bold;
-            }
-            
-            #bannerDescription {
-                font-size: 15px;
-                opacity: 0.85;
-            }
-            
-            #sectionTitle {
-                font-size: 20px;
-                font-weight: bold;
-                margin-left: 36px;
-            }
-            
-            #footer {
-                background-color: rgba(245, 245, 245, 0.7);
-                border-radius: 10px;
-            }
-            
-            #footerSeparator {
-                max-height: 1px;
-                background-color: rgba(0, 0, 0, 0.1);
-            }
-            
-            #versionInfo {
-                opacity: 0.7;
-            }
-            
-            #tipsLabel {
-                font-weight: normal;
-                color: #555;
-            }
-            
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-        """)
-        
-    def showLensAnalysisInfo(self):
-        """显示晶状体分析功能简介"""
-        InfoBar.success(
-            title='晶状体分析',
-            content="实现晶状体边界的自动提取和曲线拟合",
-            orient=Qt.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            parent=self,
-            duration=3000
-        )
-        
-    def showRetinaAnalysisInfo(self):
-        """显示视网膜分析功能简介"""
-        InfoBar.success(
-            title='视网膜分析',
-            content="实现眼底视网膜BM层的识别与圆形拟合",
-            orient=Qt.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            parent=self,
-            duration=3000
-        )
-        
-    def connectSignalToSlot(self, switchTo):
+    def connectSignalToSlot(self):
         """连接信号到切换界面的槽函数"""
-        self.lensCard.clicked.connect(lambda: switchTo(0))
-        self.lensCard.clicked.connect(self.showLensAnalysisInfo)
-        self.retinaCard.clicked.connect(lambda: switchTo(1))
-        self.retinaCard.clicked.connect(self.showRetinaAnalysisInfo)
-        
-        # 连接Banner中的开始按钮
-        self.banner.findChild(PrimaryPushButton).clicked.connect(lambda: switchTo(0))
+        self.lensCard.clicked.connect(lambda: signalBus.switchToModuleCard.emit('lensInterface'))
+        self.retinaCard.clicked.connect(lambda: signalBus.switchToModuleCard.emit('retinaInterface'))
+        self.historyCard.clicked.connect(lambda: signalBus.switchToModuleCard.emit('historyInterface'))
+
+
+if __name__ == "__main__":
+    import sys
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication(sys.argv)
+    homeInterface = HomeInterface()
+    homeInterface.show()
+    sys.exit(app.exec_())
